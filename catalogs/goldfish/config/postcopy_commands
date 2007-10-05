@@ -1,0 +1,7 @@
+sh /home/goldfish/live/catalogs/goldfish/config/makedirs
+We need to make some directories to store sessions, logs, and such.
+
+sh /home/goldfish/live/catalogs/goldfish/config/add_global_usertag
+This catalog requires some global usertags not available in the
+standard distribution.
+

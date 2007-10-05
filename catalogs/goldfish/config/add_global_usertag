@@ -1,0 +1,36 @@
+#!/bin/sh
+
+CONFDIR=/home/goldfish/live/catalogs/goldfish/config
+TAGDIR=/home/goldfish/live/interchange/code/template_tag/standard
+
+die() {
+	echo $1
+	exit 1
+}
+
+cd $CONFDIR || die "Cannot find $CONFDIR to change to.";
+
+if [ "x`whoami`" = xroot ]
+then
+	ISROOT=1
+else
+	ISROOT=0
+fi
+
+if test -d $TAGDIR
+then
+	HASTAGDIR=1
+else 
+	mkdir -p /home/goldfish/live/interchange/code/template_tag/standard \
+		|| die "Cannot make $TAGDIR"
+fi
+
+for f in *.tag
+do
+	if test -f /home/goldfish/live/interchange/usertag/$f
+	then
+		echo "$f appears to be in global usertag/ directory, skipping."
+	else
+		cp $f $TAGDIR || die "Cannot copy $f to $TAGDIR: $!"
+	fi
+done

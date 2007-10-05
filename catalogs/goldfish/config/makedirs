@@ -1,0 +1,92 @@
+#!/bin/sh
+
+PERMTYPE=`echo  | sed -e 's/\(.\).*/\1/' | tr a-z A-Z`
+
+if [ "x`whoami`" = xroot ]
+then
+	if test "x$PERMTYPE" = x -o "x$PERMTYPE" = xM
+	then
+		CATUSER=goldfish
+		CATGROUP=
+	elif test "x$PERMTYPE" = xG
+	then
+		CATUSER=goldfish
+		CATGROUP=
+	else
+		CATUSER=goldfish
+		CATGROUP=goldfish
+	fi
+fi
+
+if test "x$PERMTYPE" = x -o "x$PERMTYPE" = xM -o "x$PERMTYPE" = xG
+then
+	DMODE=2770
+	FMODE=660
+else
+	DMODE=700
+	FMODE=600
+fi
+
+# Link the image directory always
+ln -s /home/goldfish/live/htdocs/images /home/goldfish/live/catalogs/goldfish
+
+# Make log directories to store logs.
+if test -n ''
+then 
+	LOGDIR=''
+	mkdir -p     $LOGDIR/logs
+	mkdir -p     $LOGDIR/orders
+	touch        $LOGDIR/error.log
+	ln    -s     $LOGDIR/error.log /home/goldfish/live/catalogs/goldfish
+	ln    -s     $LOGDIR/logs      /home/goldfish/live/catalogs/goldfish
+	ln    -s     $LOGDIR/orders    /home/goldfish/live/catalogs/goldfish
+	chmod $DMODE $LOGDIR/logs
+	chmod $DMODE $LOGDIR/orders
+	touch        $LOGDIR/error.log
+	if test -n "$CATUSER"
+	then
+		[ -n "$CATUSER"  ] && chown $CATUSER  $LOGDIR/error.log
+		[ -n "$CATGROUP" ] && chgrp $CATGROUP $LOGDIR/error.log
+	fi
+else
+	LOGDIR='/home/goldfish/live/catalogs/goldfish'
+	mkdir -p     $LOGDIR/orders
+	mkdir -p     $LOGDIR/logs
+	chmod $DMODE $LOGDIR/logs
+	chmod $DMODE $LOGDIR/orders
+	touch        $LOGDIR/error.log
+	if test -n "$CATUSER"
+	then
+		[ -n "$CATUSER"  ] && chown $CATUSER  $LOGDIR/error.log
+		[ -n "$CATGROUP" ] && chgrp $CATGROUP $LOGDIR/error.log
+	fi
+fi
+
+chmod $FMODE $LOGDIR/error.log
+chmod $FMODE /home/goldfish/live/catalogs/goldfish/catalog.cfg
+
+# Make cache directories to store tmps.
+if test -n ''
+then 
+	CACHEDIR=''
+	mkdir -p $CACHEDIR/session
+	ln    -s $CACHEDIR/session /home/goldfish/live/catalogs/goldfish
+	mkdir -p $CACHEDIR/tmp
+	ln    -s $CACHEDIR/tmp     /home/goldfish/live/catalogs/goldfish
+else
+	CACHEDIR='/home/goldfish/live/catalogs/goldfish'
+	mkdir -p     $CACHEDIR/session
+	mkdir -p     $CACHEDIR/tmp
+	chmod $DMODE $CACHEDIR/session
+	chmod $DMODE $CACHEDIR/tmp
+fi
+
+# Fix directory ownership if running as root
+if test -n "$CATUSER"
+then
+	for i in $LOGDIR/logs $LOGDIR/orders $CACHEDIR/session $CACHEDIR/tmp
+	do
+		[ -n "$CATUSER"  ] && chown $CATUSER $i
+		[ -n "$CATGROUP" ] && chgrp $CATGROUP $i
+	done
+fi
