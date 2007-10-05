@@ -1,0 +1,13 @@
+catalogs/goldfish/catalog_local.cfg
+catalogs/goldfish/var/*
+interchange/interchange_local.cfg
+interchange/bin/interchange
+interchange/src/vlink*
+interchange/src/tlink*
+interchange/src/config.status
+interchange/src/config.h
+interchange/var/*
+
+httpd/
+cgi-bin/
+pgsql/
