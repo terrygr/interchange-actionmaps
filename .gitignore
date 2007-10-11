@@ -6,6 +6,7 @@ interchange/src/vlink*
 interchange/src/tlink*
 interchange/src/config.status
 interchange/src/config.h
+interchange/src/config.log
 interchange/var/*
 
 httpd/
