@@ -16,3 +16,5 @@ interchange/var/run/*
 httpd/
 cgi-bin/
 pgsql/
+
+!.dir
