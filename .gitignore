@@ -11,7 +11,6 @@ interchange/src/config.status
 interchange/src/config.h
 interchange/src/config.log
 interchange/var/log/*
-!interchange/var/log/.dir
 
 interchange/var/run/*
 
@@ -19,3 +18,4 @@ httpd/
 cgi-bin/
 pgsql/
 
+!/.dir
