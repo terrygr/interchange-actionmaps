@@ -1,5 +1,8 @@
 catalogs/goldfish/catalog_local.cfg
-catalogs/goldfish/var/*
+catalogs/goldfish/var/log/*
+catalogs/goldfish/var/run/*
+catalogs/goldfish/var/session/*
+catalogs/goldfish/var/tmp/*
 interchange/interchange_local.cfg
 interchange/bin/interchange
 interchange/src/vlink*
@@ -7,7 +10,8 @@ interchange/src/tlink*
 interchange/src/config.status
 interchange/src/config.h
 interchange/src/config.log
-interchange/var/*
+interchange/var/log/*
+interchange/var/run/*
 
 httpd/
 cgi-bin/
