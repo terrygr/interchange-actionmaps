@@ -11,8 +11,8 @@ interchange/src/config.status
 interchange/src/config.h
 interchange/src/config.log
 interchange/var/log/*
-
 interchange/var/run/*
+!interchange/var/run/.dir
 
 httpd/
 cgi-bin/
