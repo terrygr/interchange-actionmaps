@@ -1,4 +1,5 @@
 catalogs/goldfish/catalog_local.cfg
+catalogs/goldfish/images/*
 catalogs/goldfish/var/log/*
 catalogs/goldfish/var/run/*
 catalogs/goldfish/var/session/*
