@@ -1,0 +1,39 @@
+use strict;
+use warnings;
+
+use Test::More tests => 10;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use Vend::URLPattern;
+use Vend::URLPatterns;
+
+my $url_pattern = Vend::URLPattern->new( { pattern => '^userview/(\d+{2})/$',
+                                           package => 'IC::UserView' });
+
+ok(defined $url_pattern,  'new() returned something');
+ok($url_pattern->isa('Vend::URLPattern'), 'returned a URLPattern Object');
+
+is($url_pattern->pattern(), '^userview/(\d+{2})/$', 'URL');
+is($url_pattern->package(), 'IC::UserView', 'Module');
+
+my $patterns_reg = Vend::URLPatterns->new();
+
+# Make sure its a URLPatterns Object
+ok(defined $patterns_reg,  'new() returned something');
+ok($patterns_reg->isa('Vend::URLPatterns'), 'returned a URLPatterns Object');
+
+# Test urlpattern registration
+$patterns_reg->register($url_pattern, 'IC');
+
+my $patterns = $patterns_reg->url_patterns();
+
+is($patterns->[0]->{'catalog_id'}, 'IC', 'returned URLPattern catalog_id from URLPatterns array');
+ok($patterns->[0]->{'object'}->isa('Vend::URLPattern'), 'returned URLPattern object from URLPatterns array');
+is($patterns->[0]->{'object'}->pattern(), '^userview/(\d+{2})/$', 'returned URLPattern URL from URLPatterns array');
+is($patterns->[0]->{'object'}->package(), 'IC::UserView', 'returned URLPattern Module from URLPatterns array');
+
+my $path = "userview/32/2004/";
+$url_pattern->parse_path($path);
+my $params = $url_pattern->parameters();
+
