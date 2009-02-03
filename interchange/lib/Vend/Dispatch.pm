@@ -39,6 +39,11 @@ use Vend::Session;
 use Vend::Page;
 use Vend::UserDB;
 use Vend::CounterFile;
+use Vend::URLPattern;
+use Vend::URLPatterns;
+use Vend::URLPatterns::Registry;
+use Vend::Action;
+use Vend::Action::Factory;
 no warnings qw(uninitialized numeric);
 
 # TRACK
@@ -60,6 +65,7 @@ require Exporter;
 				tie_static_dbm
 				update_user
 				update_values
+                url_pattern
 			);
 
 use strict;
@@ -1643,73 +1649,28 @@ EOF
 
 	}
 
-#::logDebug("path=$Vend::FinalPath mv_action=$CGI::values{mv_action}");
+# ::logDebug("path=$Vend::FinalPath mv_action=$CGI::values{mv_action} CatalogName=$Vend::Cfg->{CatalogName}");
 
-  DOACTION: {
-    my @path = split('/', $Vend::FinalPath, 2);
-	if (defined $CGI::values{mv_action}) {
-		$CGI::values{mv_todo} = $CGI::values{mv_action}
-			if ! defined $CGI::values{mv_todo}
-			and ! defined $CGI::values{mv_doit};
-		$Vend::Action = $CGI->{mv_ui} ? 'ui' : 'process';
-		$CGI::values{mv_nextpage} = $Vend::FinalPath
-			if ! defined $CGI::values{mv_nextpage};
-	}
-	else {
-		$Vend::Action = shift @path;
-	}
+	# BEGIN - TEMPORARY CODE
+	#  This is a temporary measure to register URLPatterns with the collection class
+	#  and will be removed once we have another way to register them upon IC startup
+    my $result = register_url_pattern();
+	# END - TEMPORARY CODE
 
-#::logGlobal("action=$Vend::Action path=$Vend::FinalPath");
-	my ($sub, $status);
-	if(defined $Vend::Cfg->{ActionMap}{$Vend::Action}) {
-		$sub = $Vend::Cfg->{ActionMap}{$Vend::Action};
-		$CGI::values{mv_nextpage} = $Vend::FinalPath
-			if ! defined $CGI::values{mv_nextpage};
-		new Vend::Parse;
-	}
-	elsif ( defined ($sub = $action{$Vend::Action}) )  {
-		$Vend::FinalPath = join "", @path;
-	}
 
-#show_times("end path/action resolve") if $Global::ShowTimes;
+	my %do_action_params = ( 
+		global_actions  => \%action, 
+		catalog_actions => \$Vend::Cfg->{ActionMap}, 
+		final_path      => $Vend::FinalPath, 
+		catalog_id      => $Vend::Cfg->{CatalogName}, 
+		mv_action		=> $CGI::values{mv_action},
+		mv_nextpage     => $CGI::values{mv_nextpage},
+		mv_todo         => $CGI::values{mv_todo},
+		mv_doit         => $CGI::values{mv_doit},
+		mv_ui           => $CGI::values{mv_ui},
+	);
 
-	eval {
-		if(defined $sub) {
-				$status = $sub->($Vend::FinalPath);
-#show_times("end action") if $Global::ShowTimes;
-		}
-		else {
-			$status = 1;
-		}
-	};
-	(undef $Vend::RedoAction, redo DOACTION) if $Vend::RedoAction;
-
-	if($@) {
-		undef $status;
-		my $err = $@;
-		my $template = <<EOF;
-Sorry, there was an error in processing this form action. Please 
-report the error or try again later.
-EOF
-		$template .= "\n\nError: %s\n"
-				if $Global::DisplayErrors && $Vend::Cfg->{DisplayErrors}
-			;
-		$template = get_locale_message(500, $template, $err);
-		$template .= "($err)";
-		undef $Vend::write_redirect;
-		response($template);
-	}
-
-	$CGI::values{mv_nextpage} = $Vend::FinalPath
-		if ! defined $CGI::values{mv_nextpage};
-
-	do_page() if $status;
-#show_times("end page display") if $Global::ShowTimes;
-
-	for my $routine (@{$Vend::Cfg->{CleanupRoutines}}) {
-		$routine->();
-	}
-  }
+	do_action(\%do_action_params);
 
 # TRACK
 	$Vend::Track->filetrack() if $Vend::Track;
@@ -1724,6 +1685,155 @@ EOF
 #show_times("end dispatch cleanup") if $Global::ShowTimes;
 
 	return 1;
+}
+
+sub do_action {
+
+	my $parameters = shift;
+
+	my $global_actions = $parameters->{global_actions};
+	my $catalog_actions = $parameters->{catalog_actions};
+	my $final_path = $parameters->{final_path};
+	my $catalog_id = $parameters->{catalog_id};
+	my @path = split('/', $final_path, 2);
+	my $action_name = shift @path;
+# 
+#  if(!defined mv_action) 
+#		$Vend::Action = shift @path;
+#	}
+#
+# TODO - $Vend::Action is no longer used in this sub() however the old code sets the global here.  Determine if 
+# We need to set this global as it may be used afterwards ? We love globals.
+#
+	my %do_mv_params = (
+		mv_action   => $parameters->{mv_action},
+		mv_nextpage => $parameters->{mv_nextpage}, 
+		mv_todo     => $parameters->{mv_todo}, 
+		mv_doit     => $parameters->{mv_doit}, 
+		mv_ui       => $parameters->{mv_ui},
+	);
+
+	Vend::Action::do_mv(\%do_mv_params);
+
+	my ($action_sub, $status);
+
+	my $url_patterns;
+	my $url_pattern;
+	my $url_pattern_obj;
+
+	if( defined ($url_patterns = Vend::URLPatterns::Registry::patterns_for($catalog_id)) &&
+		defined (my $catalog_url_pattern = $url_patterns->parse_path($final_path)) ) {
+
+		# Try to find a catalog specific pattern match
+		$url_pattern_obj = $catalog_url_pattern->{'pattern'}; 
+	}
+	elsif( defined($action_sub = $$catalog_actions->{$action_name}) ) {
+		# Try to find a catalog specific ActionMap directive
+		$CGI::values{mv_nextpage} = $final_path
+		if ! defined $CGI::values{mv_nextpage};
+		new Vend::Parse;
+	}
+	elsif( 
+		defined ($url_patterns = Vend::URLPatterns::Registry::patterns_for('')) &&
+		defined (my $global_url_pattern = $url_patterns->parse_path($final_path)) ) {
+			# Try to find a global pattern match
+			$url_pattern_obj = $global_url_pattern->{'pattern'}; 
+	}
+	elsif( defined ($action_sub = $$global_actions{$action_name}) ) {
+		# Try to find a global ActionMap directive
+		$final_path  = join "", @path;
+	}
+	else {
+		# Nothing matched - do something default first check catalogs then global
+	}
+
+	# Invoke any methods that were found
+	eval {
+		# If we have matched a pattern invoke the proper method
+		if(defined $url_pattern_obj){
+			# Instantiate object for matched path pattern
+			my $package = $url_pattern_obj->package();
+			my $method = $url_pattern_obj->method();
+			my $action_obj = $package->new();
+			$status = $action_obj->$method($url_pattern->{'parameters'});
+		}
+		elsif(defined $action_sub){
+			$status = Vend::Action::do_action($action_name, $action_sub, \@path);
+			#show_times("end action") if $Global::ShowTimes;
+		}
+		else {
+			$status = 1;
+		}
+	};
+
+# TODO - this should be handled differently...given that we may not return true in this sub
+#	(undef $Vend::RedoAction, redo DOACTION) if $Vend::RedoAction;
+
+# TODO - Error handling - do we want to do this the exact same way
+ 	if($@) {
+ 		undef $status;
+ 		my $err = $@;
+ 		my $template = <<EOF;
+ Sorry, there was an error in processing this form action. Please 
+ report the error or try again later.
+EOF
+ 		$template .= "\n\nError: %s\n"
+ 				if $Global::DisplayErrors && $Vend::Cfg->{DisplayErrors}
+ 			;
+ 		$template = get_locale_message(500, $template, $err);
+ 		$template .= "($err)";
+ 		undef $Vend::write_redirect;
+ 		response($template);
+ 	}
+
+# TODO - Do we need this catch-all ...is this in fact a catch-all
+	$CGI::values{mv_nextpage} = $Vend::FinalPath
+		if ! defined $CGI::values{mv_nextpage};
+
+	Vend::Action::do_action_page($CGI::values{mv_nextpage}) if $status;
+
+# TODO - come up with a solution for CleanupRoutines
+	for my $routine (@{$Vend::Cfg->{CleanupRoutines}}) {
+		$routine->();
+	}
+
+	return 1;
+}
+
+sub register_url_pattern {
+
+	#
+    # REGISTER SOME PATTERNS 
+    # This is temporary until we get registration moved somewhere sane
+	#
+	my $catalog_id = 'goldfish';
+	my @patterns;
+
+    my $first_url_pattern = Vend::URLPattern->new({
+		pattern => '^userview/(\d{2})/$',
+		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
+		method  => 'get_user'
+	});
+
+    require "Vend/Runtime/Catalogs/IC/Actions/UserView.pm";
+	push(@patterns, $first_url_pattern);
+
+	my $result = Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
+
+ 	# TODO - add a global that is a general default global not the same page
+    my $global_url_pattern = Vend::URLPattern->new({
+		pattern => '^login/(\d{4})/$',
+		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
+		method  => 'login'
+	});
+	@patterns=();
+	push(@patterns, $global_url_pattern);
+
+	$result = Vend::URLPatterns::Registry::register_patterns('', \@patterns);
+	#
+	# END TEMPORARY REGISTER 
+	#
+	return $result;
 }
 
 1;

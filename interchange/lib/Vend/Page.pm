@@ -161,7 +161,8 @@ sub display_page {
 # Display the catalog page NAME.
 
 sub do_page {
-	display_page();
+	my ($page) = @_;
+	display_page($page);
 }
 
 ## DO SEARCH

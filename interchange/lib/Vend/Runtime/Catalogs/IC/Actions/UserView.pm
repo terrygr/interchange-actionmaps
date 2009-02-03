@@ -9,6 +9,20 @@ has 'view_all' => (is  => 'rw',
 
 1;
 
+sub get_user {
+    my ($self, $user_id) = @_;
+    
+    $::CGI->{mv_nextpage} = 'contact.html'; 
+    return 1;
+}
+
+sub login{
+    my ($self, $user_id) = @_;
+    
+    $::CGI->{mv_nextpage} = 'login.html'; 
+    return 1;
+}
+
 =pod
 
 =head1 NAME 
