@@ -916,6 +916,7 @@ sub get_catalog_default {
 	my ($directive) = @_;
 	my $directives = catalog_directives();
 	my $value;
+
 	for(@$directives) {
 		next unless (lc $directive) eq (lc $_->[0]);
 		$value = $_->[2];
@@ -2124,6 +2125,7 @@ sub external_cat {
 # Set up an ActionMap or FormAction or FileAction
 sub parse_action {
 	my ($var, $value, $mapped) = @_;
+
 	if (! $value) {
 		return $InitializeEmpty{$var} ? '' : {};
 	}
@@ -2152,6 +2154,7 @@ sub parse_action {
 	$sub =~ s/^\s*([\000-\377]*\S)\s*//;
 	$sub = $1;
 
+
 	if($sub !~ /\s/) {
 		no strict 'refs';
 		if($sub =~ /::/ and ! $C) {
@@ -2172,6 +2175,11 @@ sub parse_action {
 		elsif(! $c->{$name}) {
 			$@ = errmsg("Mapped %s action routine '%s' is non-existent.", $var, $sub);
 		}
+	# Show actionmap values
+	if($var eq 'ActionMap'){
+	}
+
+
 	}
 	elsif ( ! $mapped and $sub !~ /^sub\b/) {
 		if($AllowScalarAction{$var}) {
@@ -2189,16 +2197,25 @@ EOF
 		}
 	}
 	elsif (! $C or $Global::AllowGlobal->{$C->{CatalogName}}) {
+		# Catalog Actionmaps get set here
+		if($var eq 'ActionMap'){
+		}
+
+		# Catalog Actionmaps get set here
 		package Vend::Interpolate;
 		$c->{$name} = eval $sub;
 	}
 	else {
+		# Global Actionmaps get set here
+		if($var eq 'ActionMap'){
+		}
 		package Vend::Interpolate;
 		$c->{$name} = $c->{_mvsafe}->reval($sub);
 	}
 	if($@) {
 		config_warn("Action '%s' did not compile correctly (%s).", $name, $@);
 	}
+
 	return $c;
 	
 }
@@ -4806,8 +4823,14 @@ sub finalize_mapped_code {
 	unless(@types) {
 		@types = grep $_, values %valid_dest;
 	}
-	
+	# BEGIN - TEMPORARY CODE
+	#  This is a temporary measure to register URLPatterns with the collection class
+	#  and will be removed once we have another way to register them upon IC startup
+    my $result = register_url_pattern();
+	# END - TEMPORARY CODE
+
 	for my $type (@types) {
+
 		if(my $sub = $MappedInit{$type}) {
 			$sub->($type);
 		}
@@ -5181,6 +5204,44 @@ sub parse_permission {
 	}
 	$_;
 }
+
+# temporary method to register some URLPatterns until we implement this into the Config
+sub register_url_pattern {
+
+	#
+    # REGISTER SOME PATTERNS 
+    # This is temporary until we get registration moved somewhere sane
+	#
+	my $catalog_id = 'goldfish';
+	my @patterns;
+
+    my $first_url_pattern = Vend::URLPattern->new({
+		pattern => '^userview/(\d{2})/$',
+		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
+		method  => 'get_user'
+	});
+
+    require "Vend/Runtime/Catalogs/IC/Actions/UserView.pm";
+	push(@patterns, $first_url_pattern);
+
+	my $result = Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
+
+ 	# TODO - add a global that is a general default global not the same page
+    my $global_url_pattern = Vend::URLPattern->new({
+		pattern => '^login/(\d{4})/$',
+		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
+		method  => 'login'
+	});
+	@patterns=();
+	push(@patterns, $global_url_pattern);
+
+	$result = Vend::URLPatterns::Registry::register_patterns('', \@patterns);
+	#
+	# END TEMPORARY REGISTER 
+	#
+	return $result;
+}
+
 
 $StdTags = <<'EOF';
 				:core "
