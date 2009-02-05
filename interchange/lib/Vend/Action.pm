@@ -3,7 +3,7 @@ package Vend::Action;
 use strict;
 use warnings;
 
-use Vend::Page;
+use Vend::Page; #TODO: IS THIS NEEDED ?
 
 sub do_action { 
 	my ($action_name, $routine, $parameters) = @_;
@@ -27,9 +27,7 @@ sub do_mv {
 #		$CGI::values{mv_todo} = $CGI::values{mv_action} # SET mv_todo
 #			if ! defined $CGI::values{mv_todo}
 #			and ! defined $CGI::values{mv_doit};
-
 #		$Vend::Action = $CGI->{mv_ui} ? 'ui' : 'process'; # SET Vend::Action
-
 #		$CGI::values{mv_nextpage} = $Vend::FinalPath # SET mv_nextpage
 #			if ! defined $CGI::values{mv_nextpage};
 #	}
