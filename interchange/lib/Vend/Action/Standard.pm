@@ -1,6 +1,24 @@
 package Vend::Action::Standard;
 
-sub { return 1; }
+use strict;
+use warnings;
+
+use Moose;
+
+has name => (
+	is  => 'rw',
+	isa => 'Str',
+);
+
+has routine => (
+	is  => 'rw',
+	isa => 'CodeRef',
+);
+
+
+no Moose;
+
+1;
 
 =pod
 
