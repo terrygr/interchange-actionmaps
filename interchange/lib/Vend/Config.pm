@@ -53,6 +53,7 @@ use Vend::Util;
 use Vend::File;
 use Vend::Data;
 use Vend::Cron;
+use Vend::Action::Standard;
 
 $VERSION = substr(q$Revision: 2.224 $, 10);
 
@@ -275,6 +276,10 @@ for( values %extmap ) {
 	required		Required
 	routine			Routine
 	version			Version
+	urlpattern		URLPattern 
+	pattern			Pattern
+	package			Package
+	method 			Method 
 ));
 
 
@@ -316,10 +321,12 @@ my %valid_dest = qw/
 					searchop 		 SearchOp
 					widget           Widget
 					javascriptcheck  JavaScriptCheck
+					urlpattern       URLPattern 
 				/;
 
 
 my $StdTags;
+my %action_order;
 
 use vars qw/ $configfile /;
 
@@ -1126,6 +1133,9 @@ sub config {
 
 		# call the parsing function for this directive
 		$parse = $parse{$lvar};
+		if($CDname{$lvar} eq 'ActionMap' || $CDname{$lvar} eq 'CodeDef' ){
+#  			::logDebug("Setting Config Value %s:%s", $parse);
+		}
 		$value = $parse->($CDname{$lvar}, $value) if defined $parse and ! $tie;
 
 		# and set the $C->directive variable
@@ -1163,6 +1173,7 @@ CONFIGLOOP:
 			}
 		};
 	print ALLCFG "# READING FROM $configfile\n" if $allcfg;
+
 	seek(CONFIG, $tellmark, 0) if $tellmark;
 #print "seeking to $tellmark in $configfile, include is @include\n";
 	my ($ifdef, $begin_ifdef);
@@ -1212,6 +1223,10 @@ CONFIGLOOP:
 			read_config_value($_, \*CONFIG, $allcfg);
 
 		next unless $lvar;
+
+		if($CDname{$lvar} eq 'ActionMap'){
+#  ::logDebug("Setting Config Value %s:%s", $value);
+		}
 
 		# Use our closure defined above
 		$read->($lvar, $value, $tie);
@@ -1273,6 +1288,7 @@ CONFIGLOOP:
 	close CONFIG;
 	delete $include_hash{$configfile};
 
+
 	# See if we have an active configuration database
 	if($C->{ConfigDatabase}->{ACTIVE}) {
 		my ($key,$value,$dir,@val);
@@ -1297,6 +1313,24 @@ CONFIGLOOP:
 	}
 
 } # end CONFIGLOOP
+
+	foreach my $pattern_name ( @{$action_order{$C->{CatalogName}}} ) {
+		if($C->{ActionMap}{$pattern_name}){
+	 		Vend::Action::Factory->instantiate({
+ 				package_name   => $pattern_name,
+ 				catalog_id     => $C->{CatalogName},
+ 				actionmap_sub  => $C->{ActionMap}{$pattern_name},
+ 			});
+		}
+		elsif($C->{CodeDef}{ActionMap}{Routine}{$pattern_name}) {
+	 		Vend::Action::Factory->instantiate({
+ 				package_name   => $pattern_name,
+ 				catalog_id     => $C->{CatalogName},
+ 				actionmap_sub  => $C->{CodeDef}{ActionMap}{Routine}{$pattern_name},
+ 				pattern        => $C->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
+ 			});
+		}
+	}
 
 	# We need to make this directory if it isn't already there....
 	if(! $existing and $C->{ScratchDir} and ! -e $C->{ScratchDir}) {
@@ -1395,7 +1429,7 @@ sub read_here {
 	#untaint
 	$value =~ /([\000-\377]*)/;
 	$value = $1;
-	return $value;
+	return $value
 }
 
 sub config_named_catalog {
@@ -1641,6 +1675,7 @@ sub read_config_value {
 	my $var;
 	my $value;
 
+
 	if(s{^[ \t]*<(/?)(\w+)\s*(.*)\s*>\s*$}{$2$3}) {
 		$container_trigger = $1;
 		$var = $container_here = $2;
@@ -1652,12 +1687,15 @@ sub read_config_value {
 		$var = $1;
 		$value = $2;
 	}
+
 	($lvar = $var) =~ tr/A-Z/a-z/;
 
 	config_error("Unknown directive '%s'", $lvar), next
 		unless defined $CDname{$lvar};
 
+
 	my($codere) = '[-\w_#/.]+';
+
 
 	if ($container_trigger) {                  # Apache container value
 		if(my $sub = $ContainerTrigger{$lvar}) {
@@ -1913,6 +1951,27 @@ GLOBLOOP:
 	$done_one = 1;
 } # end GLOBLOOP;
 
+ 	register_url_patterns($Global::Structure, '');
+# ::logDebug("Global ConfigLoop End -------------------->" . uneval($Global::Structure->{CodeDef}));
+	# Register CodeDef ActionMaps
+	foreach my $pattern_name ( keys( %{$Global::Structure->{CodeDef}{ActionMap}{ActionMap}} )) {
+		my $runtime_obj = Vend::Action::Factory->instantiate({
+			package_name   => $pattern_name,
+			catalog_id     => '',
+			actionmap_sub  => $Global::Structure->{CodeDef}{ActionMap}{Routine}{$pattern_name},
+			pattern        => $Global::Structure->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
+		});
+	}
+
+	# Register ActionMaps
+	foreach my $pattern_name ( keys( %{$Global::Structure->{ActionMap}} )) {
+		my $runtime_obj = Vend::Action::Factory->instantiate({
+			package_name   => $pattern_name,
+			catalog_id     => '',
+			actionmap_sub  => $Global::Structure->{ActionMap}{$pattern_name},
+		});
+	}
+
 	# In case no user-supplied config has been given...returns
 	# with no effect if that has been done already.
 	get_system_code() unless defined $SystemCodeDone;
@@ -1974,7 +2033,7 @@ sub watch {
 		$ref = \$C->{$name};
 		$orig = $C->{$name};
 	}
-#::logDebug("watch ref=$ref orig=$orig name=$name value=$value");
+ ::logDebug("watch ref=$ref orig=$orig name=$name value=$value");
 	$C->{WatchIt} = { _mvsafe => $C->{ActionMap}{_mvsafe} } if ! $C->{WatchIt};
 	parse_action('WatchIt', "$name $value");
 	my $coderef = $C->{WatchIt}{$name}
@@ -2126,6 +2185,8 @@ sub external_cat {
 sub parse_action {
 	my ($var, $value, $mapped) = @_;
 
+	my $action_obj;
+
 	if (! $value) {
 		return $InitializeEmpty{$var} ? '' : {};
 	}
@@ -2154,7 +2215,6 @@ sub parse_action {
 	$sub =~ s/^\s*([\000-\377]*\S)\s*//;
 	$sub = $1;
 
-
 	if($sub !~ /\s/) {
 		no strict 'refs';
 		if($sub =~ /::/ and ! $C) {
@@ -2175,11 +2235,6 @@ sub parse_action {
 		elsif(! $c->{$name}) {
 			$@ = errmsg("Mapped %s action routine '%s' is non-existent.", $var, $sub);
 		}
-	# Show actionmap values
-	if($var eq 'ActionMap'){
-	}
-
-
 	}
 	elsif ( ! $mapped and $sub !~ /^sub\b/) {
 		if($AllowScalarAction{$var}) {
@@ -2197,31 +2252,31 @@ EOF
 		}
 	}
 	elsif (! $C or $Global::AllowGlobal->{$C->{CatalogName}}) {
-		# Catalog Actionmaps get set here
-		if($var eq 'ActionMap'){
-		}
-
-		# Catalog Actionmaps get set here
+			
 		package Vend::Interpolate;
 		$c->{$name} = eval $sub;
 	}
 	else {
-		# Global Actionmaps get set here
-		if($var eq 'ActionMap'){
-		}
 		package Vend::Interpolate;
-		$c->{$name} = $c->{_mvsafe}->reval($sub);
+		# REVAL called on ActionMap routines
+		# $c->{$name} = $c->{_mvsafe}->reval($sub); 
+		$c->{$name} = eval $sub; 
 	}
 	if($@) {
 		config_warn("Action '%s' did not compile correctly (%s).", $name, $@);
 	}
 
+	if($var eq 'ActionMap' || $var eq 'CodeDef') {
+		my $catalog_id = $C->{CatalogName} if($C); 
+		push(@{$action_order{$catalog_id}}, $name);
+	}
 	return $c;
 	
 }
 
 sub get_directive {
 	my $name = shift;
+
 	$name = $CDname{lc $name} || $name;
 	no strict 'refs';
 	if($C) {
@@ -4740,8 +4795,8 @@ sub map_widgets {
 
 sub map_codedef_to_directive {
 	my $type = shift;
-
 	no strict 'refs';
+
 
 	my $c;
 	my $cfg;
@@ -4823,12 +4878,6 @@ sub finalize_mapped_code {
 	unless(@types) {
 		@types = grep $_, values %valid_dest;
 	}
-	# BEGIN - TEMPORARY CODE
-	#  This is a temporary measure to register URLPatterns with the collection class
-	#  and will be removed once we have another way to register them upon IC startup
-    my $result = register_url_pattern();
-	# END - TEMPORARY CODE
-
 	for my $type (@types) {
 
 		if(my $sub = $MappedInit{$type}) {
@@ -4854,6 +4903,7 @@ sub parse_mapped_code {
 
 	my($tag,$p,$val) = split /\s+/, $value, 3;
 	
+::logDebug("Parse directive ---------------------------------->%s:%s",$tag, $p);
 	# Canonicalize
 	$p = $tagCanon{lc $p} || ''
 		or ::logDebug("bizarre mapped code line '$value'");
@@ -5205,43 +5255,29 @@ sub parse_permission {
 	$_;
 }
 
-# temporary method to register some URLPatterns until we implement this into the Config
-sub register_url_pattern {
+sub register_url_patterns {
 
-	#
-    # REGISTER SOME PATTERNS 
-    # This is temporary until we get registration moved somewhere sane
-	#
-	my $catalog_id = 'goldfish';
+	my ($config_hash, $catalog_id) = @_;
+
 	my @patterns;
 
-    my $first_url_pattern = Vend::URLPattern->new({
-		pattern => '^userview/(\d{2})/$',
-		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
-		method  => 'get_user'
-	});
-
-    require "Vend/Runtime/Catalogs/IC/Actions/UserView.pm";
-	push(@patterns, $first_url_pattern);
-
+	# Register URLPattern Directives
+	foreach my $pattern_name ( keys( %{$config_hash->{CodeDef}{URLPattern}{URLPattern}} )) {
+  	    my $url_pattern = Vend::URLPattern->new({
+  			pattern => $config_hash->{CodeDef}{URLPattern}{Pattern}{$pattern_name}, 
+  			package => $config_hash->{CodeDef}{URLPattern}{Package}{$pattern_name}, 
+  			method  => $config_hash->{CodeDef}{URLPattern}{Method}{$pattern_name},
+  		});
+#::logDebug("\n\nRegistering Data --> %s \n %s \n %s \n\n",
+#	$config_hash->{CodeDef}{URLPattern}{Pattern}{$pattern_name}, 
+#	$config_hash->{CodeDef}{URLPattern}{Package}{$pattern_name}, 
+#	$config_hash->{CodeDef}{URLPattern}{Method}{$pattern_name},);
+ 	    require "Vend/Runtime/Catalogs/IC/Actions/UserView.pm";
+  		push(@patterns, $url_pattern);
+	}
+	
 	my $result = Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
-
- 	# TODO - add a global that is a general default global not the same page
-    my $global_url_pattern = Vend::URLPattern->new({
-		pattern => '^login/(\d{4})/$',
-		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
-		method  => 'login'
-	});
-	@patterns=();
-	push(@patterns, $global_url_pattern);
-
-	$result = Vend::URLPatterns::Registry::register_patterns('', \@patterns);
-	#
-	# END TEMPORARY REGISTER 
-	#
-	return $result;
 }
-
 
 $StdTags = <<'EOF';
 				:core "
