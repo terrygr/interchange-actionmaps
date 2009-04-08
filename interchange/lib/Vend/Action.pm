@@ -3,13 +3,24 @@ package Vend::Action;
 use strict;
 use warnings;
 
-use Vend::Page; #TODO: IS THIS NEEDED ?
+use Moose;
 
-sub do_action { 
-	my ($action_name, $routine, $parameters) = @_;
+has request_path => (
+	is  => 'rw',
+	isa => 'Str',
+);
 
-    return $routine->(@$parameters);
-}
+no Moose;
+
+use Vend::Page;
+
+#use MooseX::ClassAttribute;
+
+#class_has 'do_action' => ( 
+#  	is      => 'rw',
+#  	isa     => 'HashRef',
+#  	default => sub { {} },
+#);
 
 sub do_action_page {
 	my ($page) = @_;
