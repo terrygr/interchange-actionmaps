@@ -26,7 +26,7 @@ sub register {
  		my $url_pattern = Vend::URLPattern->new($parameter);
 		$self->_add_pattern($url_pattern);
 	}
-	elsif($parameter->isa('Vend::URLPattern')) {
+	elsif($parameter->isa('Vend::URLPattern') or $parameter->isa('Vend::Action::Standard')) {
 		# add it to the url_patterns attribute
 		$self->_add_pattern($parameter);
 	}
@@ -52,6 +52,7 @@ sub generate_path {
 sub parse_path {
     my ($self, $path) = @_;
 
+#::logDebug("patterns ------------------->$path:" . $self->url_patterns());
     for my $url_pattern (@{ $self->url_patterns() }) {
 		my $result = $url_pattern->parse_path($path);
 		return $result if $result;
@@ -63,6 +64,7 @@ sub _add_pattern {
 	my ($self, $pattern) = @_;
 
 	my $array = $self->url_patterns();
+#::logDebug(" Adding pattern -----> %s     -----> %s ", $pattern->pattern, $pattern->package);
 	push(@$array, $pattern);
 	$self->url_patterns($array);
 }
