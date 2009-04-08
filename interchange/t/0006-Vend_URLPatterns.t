@@ -7,6 +7,7 @@ use lib "$FindBin::Bin/../lib";
 
 use Vend::URLPattern;
 use Vend::URLPatterns;
+use Vend::Action::Standard;
 
 # Instantiate registration object URLPatterns
 my $patterns_reg = Vend::URLPatterns->new();
@@ -40,32 +41,45 @@ my $fourth_url_pattern = Vend::URLPattern->new({
 	method  => 'save_user()',
 });
 
-my $fifth_url_pattern = { 
+my $fifth_url_pattern = Vend::URLPattern->new({ 
 	pattern => '^userview/(\d{2})/(\d{4})/$',
 	package => 'IC::UserView',
 	method  => 'get_user()',
-};
+});
 
-my $sixth_url_pattern = {
+my $sixth_url_pattern = Vend::URLPattern->new({
 	pattern => '^userview/(\d{2})/(\d{4})/$',
 	package => 'IC::UserView',
 	method  => 'update_user()',
-};
+});
 
+# Make some Standard actionmap objects
+my $action_obj = Vend::Action::Standard->new({
+	name    => 'product_detail',
+	routine => sub { my ($product_id) = @_; return 1; }
+});
+
+
+my $seventh_url_pattern = Vend::URLPattern->new({
+	pattern => '^product_detail',
+	package => 'IC::ProductDetail',
+	action  => $action_obj,
+});
 
 # Register the patterns
-$patterns_reg->register($first_url_pattern, 'IC');
-$patterns_reg->register($second_url_pattern, 'IC');
+$patterns_reg->register($first_url_pattern);
+$patterns_reg->register($second_url_pattern);
 
 # Test registering of array of objects
 my @obj_array;
 push(@obj_array, $third_url_pattern);
 push(@obj_array, $fourth_url_pattern);
-$patterns_reg->register(\@obj_array, 'IC');
+$patterns_reg->register(\@obj_array);
 
 # Test registration of unblessed hash 
-$patterns_reg->register($fifth_url_pattern, 'IC');
-$patterns_reg->register($sixth_url_pattern, 'IC');
+$patterns_reg->register($fifth_url_pattern);
+$patterns_reg->register($sixth_url_pattern);
+$patterns_reg->register($seventh_url_pattern);
 
 # Test url_patterns() method
 my $patterns = $patterns_reg->url_patterns();
@@ -95,47 +109,43 @@ is($generated_path, 'userview/32/2004/', 'Path generated properly:' . $generated
 $generated_path = $patterns_reg->generate_path(\%params);
 is($generated_path, undef, 'generate_path() returned undef given non-matching params');
 
-# OLD TESTS #
 # Test parse_path() method
 my $path = "userview/32/";
 my $result = $patterns->[0]->parse_path($path);
 my $param = $result->{parameters}[0];
 is($param, '32', 'First registered patterns parameter parsed successfully');
 
-# Test generate_path() and test the matched patterns attributes
 $path = "userview/32/2003/";
 my $found_url_pattern_obj = $patterns_reg->parse_path($path)->{'pattern'};
-ok($found_url_pattern_obj->isa('Vend::URLPattern'), 'pattern_for_path() - returned a URLPattern Object');
-is($found_url_pattern_obj->pattern(), '^userview/(\d{2})/(\d{4})/$', 'pattern_for_path() - returned URLPattern URL from URLPatterns array');
-is($found_url_pattern_obj->package(), 'IC::UserView', 'pattern_for_path() - returned URLPattern Module from URLPatterns array');
+ok($found_url_pattern_obj->isa('Vend::URLPattern'), 'parse_path() - returned a URLPattern Object');
+is($found_url_pattern_obj->pattern(), '^userview/(\d{2})/(\d{4})/$', 'parse_path() - returned URLPattern URL from URLPatterns array');
+is($found_url_pattern_obj->package(), 'IC::UserView', 'parse_path() - returned URLPattern Module from URLPatterns array');
 is($found_url_pattern_obj->method(), 'save_user()', 'returned URLPattern Method from URLPatterns array');
 
 $path = "userview/32/";
 $found_url_pattern_obj = $patterns_reg->parse_path($path)->{'pattern'};
-ok($found_url_pattern_obj->isa('Vend::URLPattern'), 'pattern_for_path() - returned a URLPattern Object');
-is($found_url_pattern_obj->pattern(), '^userview/(\d{2})/$', 'pattern_for_path() - returned URLPattern URL from URLPatterns array');
-is($found_url_pattern_obj->package(), 'IC::UserView', 'pattern_for_path() - returned URLPattern Module from URLPatterns array');
+ok($found_url_pattern_obj->isa('Vend::URLPattern'), 'parse_path() - returned a URLPattern Object');
+is($found_url_pattern_obj->pattern(), '^userview/(\d{2})/$', 'parse_path() - returned URLPattern URL from URLPatterns array');
+is($found_url_pattern_obj->package(), 'IC::UserView', 'parse_path() - returned URLPattern Module from URLPatterns array');
 is($found_url_pattern_obj->method(), 'get_user()', 'returned URLPattern Method from URLPatterns array');
+
+my $found_params = $patterns_reg->parse_path($path)->{'parameters'};
+print "Params: " . $found_params->[0] . "\n";
+
+
+
+$path = "product_detail/SKU01283/The-North-Face-DenaliJacket.html";
+$found_url_pattern_obj = $patterns_reg->parse_path($path)->{'pattern'};
+ok($found_url_pattern_obj->isa('Vend::URLPattern'), 'parse_path() - returned a URLPattern Object');
+is($found_url_pattern_obj->pattern(), '^product_detail', 'parse_path() - returned URLPattern URL from URLPatterns array');
+is($found_url_pattern_obj->package(), 'IC::ProductDetail', 'parse_path() - returned URLPattern Module from URLPatterns array');
+ok($found_url_pattern_obj->action()->isa('Vend::Action::Standard'), 'URL::Pattern instance has an action attribute defined');
+
+$found_params = $patterns_reg->parse_path($path)->{'parameters'};
+print "Params: " . $found_params->[0] . "\n";
 
 # Make sure a non match returns 0
 $path = "userview/word/";
 $found_url_pattern_obj = $patterns_reg->parse_path($path);
 is($found_url_pattern_obj, undef, 'pattern_for_path() returned 0 properly for an unmatched path');
 
-# Test path generation
-
-# For Vend::URLPattern tests, you should be similarly persnickety, and do
-# things like:
-# * register two separate Vend::URLPattern instances that have an
-# identical pattern but different class/methods.  Verify that parse_path
-# for a matching path always returns the first of the two registered,
-# indicating that the order of registration determines the order of priority.
-# * register multiple Vend::URLPattern instances for a given class/method
-# combination, but with different parameter possibilities (maybe one has
-# no parameters, one has one param, and a third has two params).  Verify
-# that parse_path and generate_path always behave as you would expect in
-# each case (i.e. if generate_path() is given with two params, you get a
-# path that matches the one supporting two params).
-# * again, do some parse_path and generate_path calls that shouldn't find
-# any matches at all, and verify that they give false/undef results
-# appropriately.
