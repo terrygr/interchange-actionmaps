@@ -5,6 +5,7 @@ use Test::More tests => 10;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+use Vend::Action::Standard;
 use Vend::URLPattern;
 use Vend::URLPatterns::Registry;
 
@@ -32,6 +33,14 @@ $url_obj = Vend::URLPattern->new({
 });
 push(@patterns, $url_obj);
 
+# Make some Standard actionmap objects
+my $action_obj = Vend::Action::Standard->new({
+	name    => 'product_detail',
+	routine => sub { my ($product_id) = @_; return 1; }
+});
+
+push(@patterns, $action_obj);
+
 my $result = Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
 is($result, 1, 'register_patterns(): Successfully registered patterns');
 
@@ -42,6 +51,7 @@ ok($url_patterns->isa('Vend::URLPatterns'), 'returned a URLPatterns Object');
 is($url_patterns->url_patterns()->[0]->method(), 'get_user()', 'First URLPattern method returned correctly');
 is($url_patterns->url_patterns()->[1]->method(), 'save_user()', 'Second URLPattern method returned correctly');
 is($url_patterns->url_patterns()->[2]->method(), 'get_product()', 'Third URLPattern method returned correctly');
+is($url_patterns->url_patterns()->[3]->name(), 'product_detail', 'Fourth object is a Vend::Action::Standard and name returned correctly');
 
 # Test Global registration (catalog_id undef)
 @patterns = ();
@@ -70,5 +80,3 @@ is($url_patterns->url_patterns()->[1]->method(), 'get_product()', 'Second Global
 # Test edge-case where the catalog should not be found
 $url_patterns = Vend::URLPatterns::Registry::patterns_for('store');
 is($url_patterns, undef, 'patterns_for(): Returned undef for no patterns found');
-
-
