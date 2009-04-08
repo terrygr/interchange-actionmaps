@@ -1651,11 +1651,6 @@ EOF
 
 # ::logDebug("path=$Vend::FinalPath mv_action=$CGI::values{mv_action} CatalogName=$Vend::Cfg->{CatalogName}");
 
-	# BEGIN - TEMPORARY CODE
-	#  This is a temporary measure to register URLPatterns with the collection class
-	#  and will be removed once we have another way to register them upon IC startup
-    my $result = register_url_pattern();
-	# END - TEMPORARY CODE
 
 
 	my %do_action_params = ( 
@@ -1663,6 +1658,7 @@ EOF
 		catalog_actions => \$Vend::Cfg->{ActionMap}, 
 		final_path      => $Vend::FinalPath, 
 		catalog_id      => $Vend::Cfg->{CatalogName}, 
+#		redo_action     => $Vend::RedoAction,
 		mv_action		=> $CGI::values{mv_action},
 		mv_nextpage     => $CGI::values{mv_nextpage},
 		mv_todo         => $CGI::values{mv_todo},
@@ -1718,34 +1714,25 @@ sub do_action {
 	my ($action_sub, $status);
 
 	my $url_patterns;
-	my $url_pattern;
 	my $url_pattern_obj;
 
 	if( defined ($url_patterns = Vend::URLPatterns::Registry::patterns_for($catalog_id)) &&
 		defined (my $catalog_url_pattern = $url_patterns->parse_path($final_path)) ) {
-
+::logDebug("Executing catalog ...........");
 		# Try to find a catalog specific pattern match
 		$url_pattern_obj = $catalog_url_pattern->{'pattern'}; 
 	}
-	elsif( defined($action_sub = $$catalog_actions->{$action_name}) ) {
-		# Try to find a catalog specific ActionMap directive
-		$CGI::values{mv_nextpage} = $final_path
-		if ! defined $CGI::values{mv_nextpage};
-		new Vend::Parse;
-	}
-	elsif( 
-		defined ($url_patterns = Vend::URLPatterns::Registry::patterns_for('')) &&
-		defined (my $global_url_pattern = $url_patterns->parse_path($final_path)) ) {
-			# Try to find a global pattern match
-			$url_pattern_obj = $global_url_pattern->{'pattern'}; 
-	}
-	elsif( defined ($action_sub = $$global_actions{$action_name}) ) {
-		# Try to find a global ActionMap directive
-		$final_path  = join "", @path;
-	}
+ 	elsif( 
+ 		defined ($url_patterns = Vend::URLPatterns::Registry::patterns_for('')) &&
+ 		defined (my $global_url_pattern = $url_patterns->parse_path($final_path)) ) {
+ 			# Try to find a global pattern match
+::logDebug("Executing global ...........");
+ 			$url_pattern_obj = $global_url_pattern->{'pattern'}; 
+ 	}
 	else {
 		# Nothing matched - do something default first check catalogs then global
 	}
+
 
 	# Invoke any methods that were found
 	eval {
@@ -1754,22 +1741,22 @@ sub do_action {
 			# Instantiate object for matched path pattern
 			my $package = $url_pattern_obj->package();
 			my $method = $url_pattern_obj->method();
-			my $action_obj = $package->new();
-			$status = $action_obj->$method($url_pattern->{'parameters'});
-		}
-		elsif(defined $action_sub){
-			$status = Vend::Action::do_action($action_name, $action_sub, \@path);
-			#show_times("end action") if $Global::ShowTimes;
+			my $action_obj = $package->new( request_path => $final_path );
+			$status = $action_obj->$method($final_path);
+
+#			if($redo_action){
+#			do_action($parameters);
+# ::logDebug("Running do_action() again ----------------0---------------->");
+#			}
 		}
 		else {
+::logDebug("URLPattern Object not defined!---------------->");
 			$status = 1;
 		}
 	};
-
 # TODO - this should be handled differently...given that we may not return true in this sub
 #	(undef $Vend::RedoAction, redo DOACTION) if $Vend::RedoAction;
 
-# TODO - Error handling - do we want to do this the exact same way
  	if($@) {
  		undef $status;
  		my $err = $@;
@@ -1800,41 +1787,6 @@ EOF
 	return 1;
 }
 
-sub register_url_pattern {
-
-	#
-    # REGISTER SOME PATTERNS 
-    # This is temporary until we get registration moved somewhere sane
-	#
-	my $catalog_id = 'goldfish';
-	my @patterns;
-
-    my $first_url_pattern = Vend::URLPattern->new({
-		pattern => '^userview/(\d{2})/$',
-		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
-		method  => 'get_user'
-	});
-
-    require "Vend/Runtime/Catalogs/IC/Actions/UserView.pm";
-	push(@patterns, $first_url_pattern);
-
-	my $result = Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
-
- 	# TODO - add a global that is a general default global not the same page
-    my $global_url_pattern = Vend::URLPattern->new({
-		pattern => '^login/(\d{4})/$',
-		package => 'Vend::Runtime::Catalogs::IC::Actions::UserView',
-		method  => 'login'
-	});
-	@patterns=();
-	push(@patterns, $global_url_pattern);
-
-	$result = Vend::URLPatterns::Registry::register_patterns('', \@patterns);
-	#
-	# END TEMPORARY REGISTER 
-	#
-	return $result;
-}
 
 1;
 __END__
