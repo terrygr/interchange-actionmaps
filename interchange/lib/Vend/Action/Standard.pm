@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Moose;
+extends 'Vend::Action';
 
 has name => (
 	is  => 'rw',
@@ -15,8 +16,28 @@ has routine => (
 	isa => 'CodeRef',
 );
 
-
 no Moose;
+
+sub action {
+ 	my ($self, $params) = @_;
+
+	my $status = $self->routine->($params);
+
+  	unless($::Vend::RedoAction) {
+		return { 
+			status      => $status,
+			redo_action => 0,
+		};
+	}
+	else {
+		undef $::Vend::RedoAction;
+		return { 
+			status      => $status,
+			redo_action => 1
+		};
+	
+	}
+}
 
 1;
 
