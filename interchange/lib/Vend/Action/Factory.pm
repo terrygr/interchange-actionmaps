@@ -1,38 +1,69 @@
 package Vend::Action::Factory;
 
-use Moose;
+use Vend::URLPatterns::Registry;
+use Vend::Action::Standard;
+use Moose ();
+no Moose;
 
-# TODO - add error handling for modules that it doesn't find, gracefully die
 sub instantiate {
 
-    my $self       = shift;
-    my $parameters = shift;
-    my $catalog_id = $parameters->{'catalog_id'};
-    my $module_name = $parameters->{'module_name'};
-    my $module_parameters = $parameters->{'module_parameters'};
+    my ($self, $parameters) = @_;
 
-    my $package = $self->action_class_for($module_name, $catalog_id);
+	my $catalog_id = $parameters->{'catalog_id'} || '';
 
-    require $package->{'location'};
+    my $package = $self->_action_class_for({ 
+		package_name => $parameters->{package_name},
+		catalog_id   => $catalog_id,
+	});
 
-    return $package->{'class'}->new($module_parameters);
+ 	my $action_class = Moose::Meta::Class->create(
+		$package => (
+			superclasses => ['Vend::Action::Standard'],
+  			attributes => [
+  				Moose::Meta::Attribute->new(
+  					'routine' => (
+  					default => sub { $parameters->{actionmap_sub} },
+  				),)
+  			],
+		)
+	);
+
+	# Create a URLPattern object to register with the colleciton
+	my $pattern;
+#::logDebug("Passed ActionMap pattern------------------->" . $parameters->{pattern});
+	if(defined($parameters->{pattern})){
+		$pattern = $parameters->{pattern};
+	}
+	else {
+		$pattern = '^' . $parameters->{package_name} . '((?:/|$|.+))';
+	}
+#::logDebug("Registered ActionMap pattern------------------->" . $pattern);
+	my $url_pattern = Vend::URLPattern->new({
+		pattern => $pattern,
+		package => $package, 
+		method  => 'action'
+	});
+
+	my @patterns;
+	push(@patterns, $url_pattern);
+    Vend::URLPatterns::Registry::register_patterns($catalog_id, \@patterns);
+
+	return $action_class->new_object();
 }
 
-sub action_class_for {
+sub _action_class_for {
 
-    my ($self, $module, $catalog_id) = @_;
-    my %package;
+    my ($self, $parameters) = @_;
+    my $package;
 
-    if($catalog_id){
-        %package =  ( class    => "Vend::Runtime::Catalogs::" . $catalog_id . "::Actions::$module",
-                      location => "Vend/Runtime/Catalogs/$catalog_id/Actions/$module.pm");
+    if($parameters->{catalog_id}){
+        $package = "Vend::Runtime::Catalogs::" . $parameters->{catalog_id} . "::Actions::" . $parameters->{package_name} ;
     }
     else {
-        %package =  ( class    => "Vend::Runtime::Global::Actions::$module",
-                      location => "Vend/Runtime/Global/Actions/$module.pm");
+        $package = "Vend::Runtime::Global::Actions::" . $parameters->{package_name};
     }
 
-    return \%package;
+    return $package;
 }
 
 1;
