@@ -11,11 +11,6 @@ has pattern => (
 	isa => 'Str',
 );
 
-has 'named_parameters' => (
-	is  => 'rw',
-	isa => 'ArrayRef',
-);
-
 has package => (
 	is  => 'rw', 
 	isa => 'Str',
@@ -24,6 +19,16 @@ has package => (
 has method => (
 	is  => 'rw',
 	isa => 'Str',
+);
+
+has action => (
+	is  => 'rw',
+	isa => 'Object',
+);
+
+has named_parameters => (
+	is  => 'rw',
+	isa => 'ArrayRef',
 );
 
 has 'parameters' => (
@@ -42,6 +47,7 @@ sub parse_path {
 	@url_params = $path =~ /($pattern)/g;
 	return unless @url_params;
 
+#::logDebug("URLPattern ------------------->$path:$pattern");
 	shift @url_params;
 	return {
 		pattern	   => $self,
@@ -62,7 +68,6 @@ sub generate_path {
 	}
 
 	my $matched_pattern = $self->_find_pattern_match(\@params);
-
 	if($matched_pattern) {
 		# Plug in captured parameters if any exist 
 		my $final_str = $pattern;
@@ -73,7 +78,7 @@ sub generate_path {
 		}   
        
 		# Remove anchor tags should they exist
-		$final_str =~ s/(^\^)|(\$$)//g;
+		$final_str =~ s/(^\^)|((?:\$|\)$))//g;
 
 		return $final_str;
 	}
@@ -97,8 +102,9 @@ sub _find_pattern_match {
 	if($num_groups == ($#$params+1)) {
 		my $i=0;
 		foreach my $capture (@$captures) {
-			my $capture_visual = $capture->visual();
-			if($$params[$i] !~ $capture->qr()) { 
+			my $capture_visual = '^' . $capture->visual() . '$';
+
+			if($$params[$i] !~ /$capture_visual/) { 
 				return;
 			}
 			push(@capture_params, $capture_visual);
