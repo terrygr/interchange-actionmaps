@@ -1316,19 +1316,19 @@ CONFIGLOOP:
 
 	foreach my $pattern_name ( @{$action_order{$C->{CatalogName}}} ) {
 		if($C->{ActionMap}{$pattern_name}){
-	 		Vend::Action::Factory->instantiate({
- 				package_name   => $pattern_name,
- 				catalog_id     => $C->{CatalogName},
- 				actionmap_sub  => $C->{ActionMap}{$pattern_name},
- 			});
+			Vend::Action::Factory->instantiate({
+				package_name   => $pattern_name,
+				catalog_id     => $C->{CatalogName},
+				actionmap_sub  => $C->{ActionMap}{$pattern_name},
+			});
 		}
 		elsif($C->{CodeDef}{ActionMap}{Routine}{$pattern_name}) {
-	 		Vend::Action::Factory->instantiate({
- 				package_name   => $pattern_name,
- 				catalog_id     => $C->{CatalogName},
- 				actionmap_sub  => $C->{CodeDef}{ActionMap}{Routine}{$pattern_name},
- 				pattern        => $C->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
- 			});
+			Vend::Action::Factory->instantiate({
+				package_name   => $pattern_name,
+				catalog_id     => $C->{CatalogName},
+				actionmap_sub  => $C->{CodeDef}{ActionMap}{Routine}{$pattern_name},
+				pattern        => $C->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
+			});
 		}
 	}
 
@@ -1951,25 +1951,25 @@ GLOBLOOP:
 	$done_one = 1;
 } # end GLOBLOOP;
 
- 	register_url_patterns($Global::Structure, '');
-# ::logDebug("Global ConfigLoop End -------------------->" . uneval($Global::Structure->{CodeDef}));
-	# Register CodeDef ActionMaps
-	foreach my $pattern_name ( keys( %{$Global::Structure->{CodeDef}{ActionMap}{ActionMap}} )) {
-		my $runtime_obj = Vend::Action::Factory->instantiate({
-			package_name   => $pattern_name,
-			catalog_id     => '',
-			actionmap_sub  => $Global::Structure->{CodeDef}{ActionMap}{Routine}{$pattern_name},
-			pattern        => $Global::Structure->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
-		});
-	}
+	foreach my $pattern_name ( @{$action_order{''}} ) {
+		if($Global::Structure->{ActionMap}{$pattern_name}){
+::logDebug("Registering Pattern ---------------------> $pattern_name");
+			Vend::Action::Factory->instantiate({
+				package_name   => $pattern_name,
+				catalog_id     => '',
+				actionmap_sub  => $Global::Structure->{ActionMap}{$pattern_name},
+			});
+		}
+		elsif($Global::Structure->{CodeDef}{ActionMap}{Routine}{$pattern_name}) {
+::logDebug("Registering Pattern ---------------------> $pattern_name");
+			Vend::Action::Factory->instantiate({
+				package_name   => $pattern_name,
+				catalog_id     => '',
+				actionmap_sub  => $Global::Structure->{CodeDef}{ActionMap}{Routine}{$pattern_name},
+				pattern        => $Global::Structure->{CodeDef}{ActionMap}{Pattern}{$pattern_name},
 
-	# Register ActionMaps
-	foreach my $pattern_name ( keys( %{$Global::Structure->{ActionMap}} )) {
-		my $runtime_obj = Vend::Action::Factory->instantiate({
-			package_name   => $pattern_name,
-			catalog_id     => '',
-			actionmap_sub  => $Global::Structure->{ActionMap}{$pattern_name},
-		});
+			});
+		}
 	}
 
 	# In case no user-supplied config has been given...returns
@@ -4903,7 +4903,6 @@ sub parse_mapped_code {
 
 	my($tag,$p,$val) = split /\s+/, $value, 3;
 	
-::logDebug("Parse directive ---------------------------------->%s:%s",$tag, $p);
 	# Canonicalize
 	$p = $tagCanon{lc $p} || ''
 		or ::logDebug("bizarre mapped code line '$value'");
